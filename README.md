@@ -11,3 +11,4 @@ Place csv files into *imports* subfolder.
 Temporary sql files are written to *sqls* subfolder.
 
 Data in files can't have newlines or tabs in fields.
+Error messages will come up if files don't match, with helpful hints about where the discrepancies are.
