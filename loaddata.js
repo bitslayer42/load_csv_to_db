@@ -195,9 +195,11 @@ const sendTable = function(tableName){
     const bat = spawn('cmd.exe', ['/c', 'sqlcmd', '-S', server, '-U', username, '-P', password, '-l', '30', '-i', uploadFile ]);
 
     bat.stdout.on('data', (data) => {
-        rowCnt = data.toString().match(/(\d+)/g,'$1');
-        console.log(rowCnt + ' rows affected table \'' + tableName + '\'');
-        //console.log(data.toString());
+        //rowCnt = data.toString().match(/(\d+)/g,'$1');  (\r\n)\s*(\r\n)|^(\r\n)|(\r\n)$
+        //console.log(rowCnt + ' rows affected table \'' + tableName + '\'');
+        message = data.toString().replace(/\n*/g,'')
+            .replace(/(\d+) rows affected/g,'$1 rows: Table \'' + tableName + '\'');
+        console.log(message);
     });
 
     bat.stderr.on('data', (data) => {
