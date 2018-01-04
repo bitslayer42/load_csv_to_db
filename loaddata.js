@@ -1,86 +1,60 @@
 // USAGE:
 // File Name + '.csv' must match Table Name
 //Files are tab delimited
+let db = require('odbc')();
 const fs = require('fs');
-const readline = require('readline');
 const { spawn } = require('child_process');
-const { server, username, password } = require('./config.json');
+const readline = require('readline');
+//const { spawn } = require('child_process');
+const { server, username, password, connectionString } = require('./config.json');
 const importsPath = __dirname + "/imports/";
 const sqlsPath = __dirname + "/sqls/";
 let logFile = __dirname + '/logfile.txt';
 
 let schemas = [];
-
-fs.readdir(importsPath, function(err, items) {  //read imports folder
-    let tableNameStr = items.map( 
-        function(item){
-            return "'" + item.slice(0,-4) + "'";
-        }
-    ).join(',');
-    let tableArr = items.map(  //array of tablenames
-        function(item){
-            return item.slice(0,-4);
-        }
-    )    
-    getSchemas(tableArr,tableNameStr);
-});
+db.open(connectionString, function (err) {
+    if (err) return console.log(err.toString());
+    fs.readdir(importsPath, function(err, items) {  //read imports folder
+        let tableNameStr = items.map( 
+            function(item){
+                return "'" + item.slice(0,-4) + "'";
+            }
+        ).join(',');
+        let tableArr = items.map(  //array of tablenames
+            function(item){
+                return item.slice(0,-4);
+            }
+        )    
+        getSchemas(tableArr,tableNameStr);
+    });
+});    
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Go to database with list of table names pulled from files. Extract data types.
 const getSchemas = function(tableArr,tableNameStr) {
     
-    
+    console.log(tableNameStr);
     let row;
-    let schemaQuery = "SELECT '~' + rtrim(TABLE_NAME) + '~' + rtrim(COLUMN_NAME) + '~' + rtrim(DATA_TYPE) + '~' + rtrim(ORDINAL_POSITION) + '~'"
+    let schemaQuery = "SELECT rtrim(TABLE_NAME) tablename,rtrim(COLUMN_NAME) columnname,"
+                    + "rtrim(DATA_TYPE) datatype,rtrim(ORDINAL_POSITION) ordinalposition"
                     + " from INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME IN (" 
                     + tableNameStr 
                     + ") AND COLUMNPROPERTY(object_id(TABLE_SCHEMA+'.'+TABLE_NAME), COLUMN_NAME, 'IsIdentity') <> 1 ORDER BY TABLE_NAME, ORDINAL_POSITION";
     //console.log(schemaQuery);
-    const bat = spawn('cmd.exe', ['/c', 'sqlcmd', '-S', server, '-U', username, '-P', password, '-l', '30', '-Q', schemaQuery ]);
-    
-    bat.stdout.on('data', (data) => {
-        data.toString('utf8')
-        //.replace(/\n/g,"")
-        .split('~') //separate into array
-        .slice(1)  //remove header row
-        .forEach((element,ix)=>{  //console.log(element);
-            let alphanum = element.trim();
-            switch(ix % 5) { //columns 0-3 plus one 
-                case 0: // tablename
-                    row = [];
-                    row.push(alphanum);
-                    break;
-                case 1: // column name
-                    row.push(alphanum);
-                    break;
-                case 2: // data type
-                    row.push(alphanum);
-                    break;
-                case 3: //col num
-                    row.push(alphanum);
-                    schemas.push(row);
-                    break;
-                case 4: //space -throw out
-                    break;
-            }
+    db.query(schemaQuery, function (err, data) {
+        if (err) {console.log(err.toString());}
+        //console.log('Lookup:',JSON.stringify(data));
+        if(data[0]){
+            schemas = data;
+        }
+        db.close(function () {
+            tableArr.forEach(function(tableName){
+                processFile(tableName,(tbl)=>{
+                    console.log('Created file "' + tbl + '.sql"');
+                    sendTable(tbl);
+                })
+            });
         });
-    });
-    
-    bat.stderr.on('data', (data) => {
-      console.log(data.toString());
-    });
-    
-    bat.on('exit', (code) => {
-        if(code===1) { console.log('Error getting schemas') };
-            //console.log(schemas);
-        tableArr.forEach(function(tableName){
-            processFile(tableName,(tbl)=>{
-                console.log('Created file "' + tbl + '.sql"');
-                sendTable(tbl);
-            })
-        });
-    });
-
-   
+    }); 
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 const processFile = function(tableName,done) { 
@@ -96,12 +70,12 @@ const processFile = function(tableName,done) {
     let firstLine = true;
     let linenumber = 0;
 
-    const schemaForTable = schemas.filter(schema=>schema[0].toUpperCase()===tableName.toUpperCase());
+    const schemaForTable = schemas.filter(schema=>schema.tablename.toUpperCase()===tableName.toUpperCase());
 
     const columnArray = schemaForTable //table columns from database
         .map( 
             function(item){ 
-                return item[1];
+                return item.columnname;
             }
         )
     if(columnArray.length==0){
@@ -161,7 +135,7 @@ const processFile = function(tableName,done) {
             
         fields.forEach((field,ix)=>{
             if(!schemaForTable[ix]){ return; }
-            const dataType = schemaForTable[ix][2];
+            const dataType = schemaForTable[ix].datatype;
 
             if(dataType==="bit"){
                 if(field==="T"){  field=1;  }
