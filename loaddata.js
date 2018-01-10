@@ -4,7 +4,7 @@
 const fs = require('fs');
 const readline = require('readline');
 const { spawn } = require('child_process');
-const { server, username, password } = require('./config.json');
+const { server, username, password, database } = require('./config.json');
 const importsPath = __dirname + "/imports/";
 const sqlsPath = __dirname + "/sqls/";
 let logFile = __dirname + '/logfile.txt';
@@ -35,7 +35,7 @@ const getSchemas = function(tableArr,tableNameStr) {
                     + tableNameStr 
                     + ") AND COLUMNPROPERTY(object_id(TABLE_SCHEMA+'.'+TABLE_NAME), COLUMN_NAME, 'IsIdentity') <> 1 ORDER BY TABLE_NAME, ORDINAL_POSITION";
     //console.log(schemaQuery);
-    const bat = spawn('cmd.exe', ['/c', 'sqlcmd', '-S', server, '-U', username, '-P', password, '-l', '30', '-Q', schemaQuery ]);
+    const bat = spawn('cmd.exe', ['/c', 'sqlcmd', '-S', server, '-U', username, '-P', password, '-d', database, '-l', '30', '-Q', schemaQuery ]);
     
     bat.stdout.on('data', (data) => {
         data.toString('utf8')
@@ -192,7 +192,7 @@ const sendTable = function(tableName){
     let rowCnt = 0;
     let uploadFile = sqlsPath + tableName + '.sql'; 
 
-    const bat = spawn('cmd.exe', ['/c', 'sqlcmd', '-S', server, '-U', username, '-P', password, '-l', '30', '-i', uploadFile ]);
+    const bat = spawn('cmd.exe', ['/c', 'sqlcmd', '-S', server, '-U', username, '-P', password, '-d', database, '-l', '30', '-i', uploadFile ]);
 
     bat.stdout.on('data', (data) => {
         //rowCnt = data.toString().match(/(\d+)/g,'$1');  (\r\n)\s*(\r\n)|^(\r\n)|(\r\n)$
